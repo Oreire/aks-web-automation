@@ -55,7 +55,8 @@ jobs:
       # Deploy to Kubernetes
       - name: Deploy Kubernetes Manifests
         run: |
-          kubectl apply -f AKS/
+          echo "Deploying Kubernetes manifests..."
+          kubectl apply -f AKS/ || kubectl replace --force -f AKS/
 
       # Wait for LoadBalancer IP
       - name: Wait for LoadBalancer IP
