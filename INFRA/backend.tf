@@ -1,7 +1,8 @@
+
 terraform {
   backend "azurerm" {
-    resource_group_name  = "k8s-cloud_group"
-    storage_account_name = "k8scloudtfstate"
+    resource_group_name  = "aks-resource-group"
+    storage_account_name = "k8scloudtfstateuks"
     container_name       = "tfstate"
     key                  = "terraform.tfstate"
   }
