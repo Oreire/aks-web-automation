@@ -30,7 +30,7 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           # Ensure that AZURE_CREDENTIALS is set in your repository secrets at https://github.com/<owner>/<repo>/settings/secrets/actions
-
+          enable-AzPSSession: false
       # Get AKS credentials
       - name: Get AKS Credentials
         run: |
