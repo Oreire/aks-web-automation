@@ -7,10 +7,9 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: oresky73/ghs-nginx-app42
+  IMAGE_NAME: oresky73/ghs-nginx-app46
   IMAGE_TAG: latest
-  RESOURCE_GROUP: aks-resource-group
-  AKS_CLUSTER_NAME: aks-cluster
+  RESOURCE_GROUP: k8s-cloud_group   # corrected resource group
   NAMESPACE: default
 
 jobs:
@@ -31,6 +30,15 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           enable-AzPSSession: false
           environment: AzureCloud
+
+      # Discover AKS cluster name dynamically
+      - name: Get AKS Cluster Name
+        id: get-cluster
+        run: |
+          CLUSTER_NAME=$(az aks list --resource-group $RESOURCE_GROUP --query '[0].name' -o tsv)
+          echo "Cluster found: $CLUSTER_NAME"
+          echo "AKS_CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
+
       # Get AKS credentials
       - name: Get AKS Credentials
         run: |
@@ -58,13 +66,21 @@ jobs:
 
       # Wait for LoadBalancer IP
       - name: Wait for LoadBalancer IP
+        id: get-lb-ip
         run: |
           echo "Waiting for LoadBalancer IP..."
           for i in {1..30}; do
             IP=$(kubectl get svc my-loadbalancer-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
             if [ -n "$IP" ]; then
               echo "LoadBalancer IP is: $IP"
+              echo "LB_IP=$IP" >> $GITHUB_ENV
+              echo "::set-output name=lb_ip::$IP"
               break
             fi
             sleep 10
           done
+
+      # Print LoadBalancer IP in job summary
+      - name: Show LoadBalancer IP
+        run: |
+          echo "✅ Application is accessible at http://$LB_IP"
