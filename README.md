@@ -205,7 +205,7 @@ terraform apply -auto-approve tfplan
 
 ## 🔐 DevSecOps Enhancements
 
-* **Terraform state locking** with Azure Storage
+* **Terraform state locking** with Azure Blob Storage
 * **Secrets Store CSI Driver** for secure secrets injection
 * Enable **RBAC and network policies** in AKS
 * Scan container images with **Microsoft Defender for Containers**
