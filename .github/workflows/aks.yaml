@@ -64,7 +64,7 @@ jobs:
         run: |
           echo "Waiting for LoadBalancer IP..."
           for i in {1..30}; do
-            IP=$(kubectl get svc my-loadbalancer-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            IP=$(kubectl get svc glanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
             if [ -n "$IP" ]; then
               echo "LoadBalancer IP is: $IP"
               echo "LB_IP=$IP" >> $GITHUB_ENV
