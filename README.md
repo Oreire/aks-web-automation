@@ -1,217 +1,212 @@
-# aks-deploy
+# End-to-End Delivery of a Secure, Automated, and Scalable Containerized Solution on Azure AKS Using Terraform and GitHub Actions
 
-Deploying a containerised application to an **Azure Kubernetes Service (AKS)** cluster using **Azure DevOps** and **Terraform** involves three key stages: **provisioning infrastructure**, **building and pushing the container**, and **deploying to AKS**. Here's a structured guide tailored to your DevSecOps practice and cloud-native delivery goals:
+## Project Overview
 
----
+This project demonstrates the deployment of a **pre-built containerized web application** to a managed Kubernetes cluster on **Azure AKS**. The application image is hosted on DockerHub, and Kubernetes manifests handle the deployment and exposure via a LoadBalancer service.
 
-## 🧱 1. Provision AKS Infrastructure with Terraform
+Pre-requisites:
+---------------
+1. Azure Subscription with Contributor access
+2. Existing AKS Cluster (provisioned via Terraform)
+3. DockerHub account with the pre-built image pushed
+   - IMAGE: oresky73/ghs-nginx-app42:latest
+4. GitHub repository with Kubernetes manifests (AKS/deploy.yaml & AKS/service.yaml)
+5. GitHub secrets:
+   - AZURE_CREDENTIALS (Service Principal JSON)
+   - DOCKERHUB_USERNAME
+   - DOCKERHUB_TOKEN
+6. kubectl installed locally (optional for manual verification)
+7. Azure CLI installed locally (optional for manual verification)
 
-### ✅ Prerequisites
-- Azure subscription and service principal with contributor access  
-- Terraform installed and configured  
-- Azure DevOps project with a connected repo
 
-### 📦 Terraform Configuration
-Create a `main.tf` file with modules to provision:
-- Resource group  
-- AKS cluster  
-- Container registry (ACR)  
-- Networking (optional)
+**Key Features:**
 
-Example snippet:
-```hcl
-provider "azurerm" {
-  features {}
-}
+* **Managed Kubernetes Cluster:** Provisioned and managed with Terraform.
+* **Pre-Built Containerized Application:** Docker image already hosted on DockerHub for deployment.
+* **Automated Deployment:** GitHub Actions handles Azure login, AKS credentials, and deployment to Kubernetes.
+* **External Access:** LoadBalancer service exposes the application.
+* **Node and Service Readiness Checks:** Workflow ensures AKS nodes are ready and LoadBalancer IP is assigned.
 
-resource "azurerm_kubernetes_cluster" "aks" {
-  name                = "aks-cluster"
-  location            = "UK South"
-  resource_group_name = azurerm_resource_group.rg.name
-  ...
-}
+**Tech Stack:**
+
+* Azure Kubernetes Service (AKS)
+* Docker & DockerHub (pre-built image)
+* Terraform (AKS provisioning)
+* GitHub Actions (CI/CD pipeline)
+* Kubernetes manifests (Deployment & Service)
+
+
+## Project Structure
+
+
+├── AKS/
+│   ├── deploy.yaml         # Kubernetes Deployment manifest
+│   └── service.yaml        # Kubernetes LoadBalancer Service manifest
+├── INFRA/                  # Terraform infrastructure code
+│   ├── main.tf
+│   ├── variables.tf
+│   └── outputs.tf
+├── .github/workflows/
+│   └── deploy.yml          # GitHub Actions workflow
+├── README.md
+
+
+## Deployment Flow
+
+1. AKS cluster provisioned via Terraform (pre-existing).
+2. GitHub Actions workflow logs into Azure and retrieves AKS credentials.
+3. Workflow deploys the **pre-built containerized application** using Kubernetes manifests.
+4. Workflow waits for nodes to be ready and LoadBalancer IP to be assigned.
+5. Application is accessible via the LoadBalancer IP.
+
+# Workflow Overview:
+------------------
+GitHub Push to main branch
+          │
+          ▼
+   ┌──────────────────┐
+   │ GitHub Actions   │
+   │ Workflow Trigger │
+   └──────────────────┘
+          │
+          ▼
+   ┌──────────────────────────┐
+   │ Azure Login              │
+   │ (Service Principal)      │
+   └──────────────────────────┘
+          │
+          ▼
+   ┌──────────────────────────┐
+   │ Get AKS Credentials      │
+   │ az aks get-credentials   │
+   └──────────────────────────┘
+          │
+          ▼
+   ┌──────────────────────────┐
+   │ Wait for AKS Nodes Ready │
+   └──────────────────────────┘
+          │
+          ▼
+   ┌──────────────────────────┐
+   │ Deploy Kubernetes        │
+   │ Manifests (AKS/)         │
+   │ - deploy.yaml            │
+   │ - service.yaml           │
+   └──────────────────────────┘
+          │
+          ▼
+   ┌──────────────────────────┐
+   │ Wait for LoadBalancer IP │
+   └──────────────────────────┘
+          │
+          ▼
+   ┌──────────────────────────┐
+   │ Application Accessible   │
+   │ http://<LoadBalancer-IP> │
+   └──────────────────────────┘
+
+
+## Getting Started
+
+### 1. Configure GitHub Actions
+
+Workflow `.github/workflows/deploy.yml` automates deployment:
+
+* Logs in to Azure using service principal.
+* Retrieves AKS credentials via `az aks get-credentials`.
+* Applies Kubernetes manifests (`deploy.yaml` and `service.yaml`).
+* Waits for LoadBalancer IP and outputs it.
+
+### 2. Access the Application
+
+Check the LoadBalancer service:
+
+```bash
+kubectl get svc my-loadbalancer-service -n default
 ```
 
-### 🔁 Azure DevOps Pipeline (Terraform Stage)
-Use a pipeline task to:
-- Install Terraform  
-- Initialise and apply the configuration  
-- Store outputs (e.g. kubeconfig, ACR login server)
+Access the app at:
+
+```
+http://<LoadBalancer-IP>/
+```
+
+### 3. Verify Pod Status
+
+Ensure all application pods are running:
+
+```bash
+kubectl get pods -n default
+```
+
+## Updating the Application
+
+1. Update the Kubernetes deployment image tag in `deploy.yaml`:
 
 ```yaml
-- task: TerraformInstaller@1
-- script: |
-    terraform init
-    terraform apply -auto-approve
+image: oresky73/ghs-nginx-app46:<new-tag>
 ```
 
----
+2. Push the updated manifest to the `main` branch. The workflow will:
 
-## 🐳 2. Build and Push Container Image
+    * Retrieve AKS credentials
+    * Apply updated Kubernetes manifests
+    * Wait for pods to be ready
+    * Ensure LoadBalancer IP remains assigned
 
-### 🧪 Docker Build Pipeline
-In Azure DevOps, define a pipeline to:
-- Build the Docker image  
-- Tag it with the ACR login server  
-- Push it to ACR
+3. Verify the rollout:
 
-```yaml
-- task: Docker@2
-  inputs:
-    command: buildAndPush
-    repository: myapp
-    dockerfile: Dockerfile
-    containerRegistry: $(ACR_SERVICE_CONNECTION)
-    tags: latest
+```bash
+kubectl rollout status deployment my-deployment -n default
+kubectl get pods -n default
 ```
 
-Ensure your service connection to ACR is securely configured.
+## Optional: Terraform Deployment
 
----
+If AKS cluster does not exist:
 
-## 🚀 3. Deploy to AKS
-
-### 📄 Kubernetes Manifests
-Create deployment and service YAML files:
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: myapp
-spec:
-  replicas: 2
-  template:
-    spec:
-      containers:
-      - name: myapp
-        image: <acr-login-server>/myapp:latest
+```bash
+cd INFRA
+terraform init
+terraform plan -out=tfplan
+terraform apply -auto-approve tfplan
 ```
 
-### 🔧 Azure DevOps Deployment Stage
-Use `kubectl` to apply manifests:
-```yaml
-- task: Kubernetes@1
-  inputs:
-    connectionType: Azure Resource Manager
-    azureSubscription: '<your-subscription>'
-    azureResourceGroup: '<your-rg>'
-    kubernetesCluster: '<your-aks-cluster>'
-    command: apply
-    useConfigurationFile: true
-    configuration: deployment.yaml
-```
+## Kubernetes Best Practices Implemented
 
----
+* Resource **requests and limits** for pods
+* **ServiceAccount tokens disabled**
+* **LoadBalancer** exposes application externally
+* Ready checks ensure pod health
+
+
+## Troubleshooting
+
+* **Pods pending:** Verify the image exists on DockerHub and cluster nodes have sufficient resources.
+* **LoadBalancer IP not assigned:** Ensure Azure allows public IP provisioning.
+* **Authentication errors:** Confirm GitHub secrets for Azure credentials.
+
+
+## Future Enhancements
+
+* Add **Ingress Controller** for domain routing and TLS termination
+* Use **Helm charts** for templated deployments
+* Add **readiness/liveness probes** for pod health
+* Integrate **monitoring and logging** (Azure Monitor, Prometheus/Grafana)
+
+
+## References
+
+* [AKS Documentation](https://learn.microsoft.com/en-us/azure/aks/)
+* [Docker Hub](https://hub.docker.com/)
+* [Terraform Azure Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
+* [GitHub Actions for Azure](https://github.com/Azure/actions)
+
 
 ## 🔐 DevSecOps Enhancements
-- Integrate **Terraform state locking** with Azure Storage  
-- Use **Secrets Store CSI Driver** for secure secrets injection  
-- Enable **RBAC and network policies** in AKS  
-- Scan container images with **Microsoft Defender for Containers**
 
-# Actions Workflow
-
-name: Provision AKS and Deploy App
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-env:
-  IMAGE_NAME: oresky73/ghs-nginx-app42
-  IMAGE_TAG: latest
-  TERRAFORM_DIR: infra
-  RESOURCE_GROUP: aks-resource-group
-  AKS_CLUSTER_NAME: aks-cluster
-  NAMESPACE: default
-
-jobs:
-  terraform-and-deploy:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # Terraform setup
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.7.5
-
-      - name: Terraform Init
-        working-directory: ${{ env.TERRAFORM_DIR }}
-        run: terraform init
-
-      - name: Terraform Plan
-        working-directory: ${{ env.TERRAFORM_DIR }}
-        run: terraform plan -out=tfplan
-
-      - name: Terraform Apply
-        working-directory: ${{ env.TERRAFORM_DIR }}
-        run: terraform apply -auto-approve tfplan
-
-      # Azure login
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Get AKS Credentials
-        run: |
-          az aks get-credentials --resource-group $RESOURCE_GROUP --name $AKS_CLUSTER_NAME --overwrite-existing
-
-      # Wait for AKS nodes to be ready
-      - name: Wait for AKS Nodes Ready
-        run: |
-          echo "Waiting for AKS nodes to be ready..."
-          for i in {1..30}; do
-            READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready')
-            TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
-            if [ "$TOTAL_NODES" -gt 0 ] && [ "$READY_NODES" -eq "$TOTAL_NODES" ]; then
-              echo "All $READY_NODES AKS nodes are ready!"
-              break
-            fi
-            echo "Nodes not ready yet. Waiting 20s..."
-            sleep 20
-          done
-
-      # Docker build and push
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Docker Login
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build Docker image
-        run: docker build -t $IMAGE_NAME:$IMAGE_TAG .
-
-      - name: Push Docker image
-        run: docker push $IMAGE_NAME:$IMAGE_TAG
-
-      # Deploy to Kubernetes
-      - name: Deploy Kubernetes Manifests
-        run: |
-          kubectl apply -f k8s/deploy.yaml
-          kubectl apply -f k8s/service.yaml
-
-      - name: Wait for LoadBalancer IP
-        run: |
-          echo "Waiting for LoadBalancer IP..."
-          for i in {1..30}; do
-            IP=$(kubectl get svc my-loadbalancer-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-            if [ -n "$IP" ]; then
-              echo "LoadBalancer IP is: $IP"
-              break
-            fi
-            sleep 10
-          done
+* **Terraform state locking** with Azure Storage
+* **Secrets Store CSI Driver** for secure secrets injection
+* Enable **RBAC and network policies** in AKS
+* Scan container images with **Microsoft Defender for Containers**
 
