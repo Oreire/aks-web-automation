@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: oresky73/ghs-nginx-app46
+  IMAGE_NAME: docker.io/oresky73/ghs-nginx-app46
   IMAGE_TAG: latest
   RESOURCE_GROUP: aks-resource-group   
   AKS_CLUSTER_NAME: aks-cluster       
