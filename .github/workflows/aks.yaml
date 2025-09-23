@@ -1,0 +1,69 @@
+name: Deploy App to AKS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: oresky73/ghs-nginx-app42
+  IMAGE_TAG: latest
+  RESOURCE_GROUP: aks-resource-group
+  AKS_CLUSTER_NAME: aks-cluster
+  NAMESPACE: default
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Azure login
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Get AKS credentials
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials --resource-group $RESOURCE_GROUP --name $AKS_CLUSTER_NAME --overwrite-existing
+
+      # Wait for AKS nodes to be ready
+      - name: Wait for AKS Nodes Ready
+        run: |
+          echo "Waiting for AKS nodes to be ready..."
+          for i in {1..30}; do
+            READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready')
+            TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+            if [ "$TOTAL_NODES" -gt 0 ] && [ "$READY_NODES" -eq "$TOTAL_NODES" ]; then
+              echo "All $READY_NODES AKS nodes are ready!"
+              break
+            fi
+            echo "Nodes not ready yet. Waiting 20s..."
+            sleep 20
+          done
+
+      # Deploy to Kubernetes
+      - name: Deploy Kubernetes Manifests
+        run: |
+          kubectl apply -f AKS/
+
+      # Wait for LoadBalancer IP
+      - name: Wait for LoadBalancer IP
+        run: |
+          echo "Waiting for LoadBalancer IP..."
+          for i in {1..30}; do
+            IP=$(kubectl get svc my-loadbalancer-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            if [ -n "$IP" ]; then
+              echo "LoadBalancer IP is: $IP"
+              break
+            fi
+            sleep 10
+          done
