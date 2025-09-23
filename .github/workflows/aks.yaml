@@ -9,7 +9,8 @@ on:
 env:
   IMAGE_NAME: oresky73/ghs-nginx-app46
   IMAGE_TAG: latest
-  RESOURCE_GROUP: k8s-cloud_group   # corrected resource group
+  RESOURCE_GROUP: aks-resource-group   
+  AKS_CLUSTER_NAME: aks-cluster       
   NAMESPACE: default
 
 jobs:
@@ -30,14 +31,6 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           enable-AzPSSession: false
           environment: AzureCloud
-
-      # Discover AKS cluster name dynamically
-      - name: Get AKS Cluster Name
-        id: get-cluster
-        run: |
-          CLUSTER_NAME=$(az aks list --resource-group $RESOURCE_GROUP --query '[0].name' -o tsv)
-          echo "Cluster found: $CLUSTER_NAME"
-          echo "AKS_CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
 
       # Get AKS credentials
       - name: Get AKS Credentials
