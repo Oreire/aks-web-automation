@@ -29,7 +29,6 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          # Ensure that AZURE_CREDENTIALS is set in your repository secrets at https://github.com/<owner>/<repo>/settings/secrets/actions
           enable-AzPSSession: false
           environment: AzureCloud
       # Get AKS credentials
