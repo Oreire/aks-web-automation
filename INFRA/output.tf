@@ -22,3 +22,12 @@ output "kube_config_host" {
   value     = azurerm_kubernetes_cluster.aks_cluster.kube_config.0.host
   sensitive = true
 }
+
+output "aks_name" {
+  value = azurerm_kubernetes_cluster.aks.name
+}
+
+output "resource_group_name" {
+  value = azurerm_resource_group.aks_rg.name
+}
+
