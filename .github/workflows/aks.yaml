@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: docker.io/oresky73/ghs-nginx-app46
+  IMAGE_NAME: docker.io/webaz
   IMAGE_TAG: latest
   RESOURCE_GROUP: aks-resource-group   
   AKS_CLUSTER_NAME: aks-cluster       
@@ -64,7 +64,7 @@ jobs:
         run: |
           echo "Waiting for LoadBalancer IP..."
           for i in {1..30}; do
-            IP=$(kubectl get svc glanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            IP=$(kubectl get svc lanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
             if [ -n "$IP" ]; then
               echo "LoadBalancer IP is: $IP"
               echo "LB_IP=$IP" >> $GITHUB_ENV
