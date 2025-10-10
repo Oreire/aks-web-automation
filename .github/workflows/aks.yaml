@@ -1,4 +1,85 @@
-name: Deploy App to AKS
+# name: Deploy App to AKS
+
+# on:
+#   push:
+#     branches:
+#       - main
+#   workflow_dispatch:
+
+# env:
+#   IMAGE_NAME: docker.io/webaz
+#   IMAGE_TAG: latest
+#   RESOURCE_GROUP: aks-resource-group   
+#   AKS_CLUSTER_NAME: aks-cluster       
+#   NAMESPACE: default
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     defaults:
+#       run:
+#         shell: bash
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v3
+
+#       # Azure login
+#       - name: Azure Login
+#         uses: azure/login@v1
+#         with:
+#           creds: ${{ secrets.AZURE_CREDENTIALS }}
+#           enable-AzPSSession: false
+#           environment: AzureCloud
+
+#       # Get AKS credentials
+#       - name: Get AKS Credentials
+#         run: |
+#           az aks get-credentials --resource-group $RESOURCE_GROUP --name $AKS_CLUSTER_NAME --overwrite-existing
+
+#       # Wait for AKS nodes to be ready
+#       - name: Wait for AKS Nodes Ready
+#         run: |
+#           echo "Waiting for AKS nodes to be ready..."
+#           for i in {1..30}; do
+#             READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready')
+#             TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+#             if [ "$TOTAL_NODES" -gt 0 ] && [ "$READY_NODES" -eq "$TOTAL_NODES" ]; then
+#               echo "All $READY_NODES AKS nodes are ready!"
+#               break
+#             fi
+#             echo "Nodes not ready yet. Waiting 20s..."
+#             sleep 20
+#           done
+
+#       # Deploy to Kubernetes
+#       - name: Deploy Kubernetes Manifests
+#         run: |
+#           echo "Deploying Kubernetes manifests..."
+#           kubectl apply -f AKS/ || kubectl replace --force -f AKS/
+
+#       # Wait for LoadBalancer IP
+#       - name: Wait for LoadBalancer IP
+#         id: get-lb-ip
+#         run: |
+#           echo "Waiting for LoadBalancer IP..."
+#           for i in {1..30}; do
+#             IP=$(kubectl get svc lanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+#             if [ -n "$IP" ]; then
+#               echo "LoadBalancer IP is: $IP"
+#               echo "LB_IP=$IP" >> $GITHUB_ENV
+#               echo "::set-output name=lb_ip::$IP"
+#               break
+#             fi
+#             sleep 10
+#           done
+
+#       # Print LoadBalancer IP in job summary
+#       - name: Show LoadBalancer IP
+#         run: |
+#           echo "✅ Application is accessible at http://$LB_IP"
+
+name: Provision and Deploy App to AKS
 
 on:
   push:
@@ -9,13 +90,72 @@ on:
 env:
   IMAGE_NAME: docker.io/webaz
   IMAGE_TAG: latest
-  RESOURCE_GROUP: aks-resource-group   
-  AKS_CLUSTER_NAME: aks-cluster       
+  RESOURCE_GROUP: aks-resource-group
+  AKS_CLUSTER_NAME: aks-cluster
   NAMESPACE: default
 
 jobs:
-  deploy:
+  # -----------------------------------------------------
+  # 1️⃣ PROVISION AKS CLUSTER USING TERRAFORM
+  # -----------------------------------------------------
+  provision:
+    name: Provision AKS with Terraform
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Login to Azure
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.9.5
+
+      # Initialize Terraform
+      - name: Terraform Init
+        working-directory: ./INFRA
+        run: terraform init
+
+      # Plan Terraform changes
+      - name: Terraform Plan
+        working-directory: ./INFRA
+        run: terraform plan -out=tfplan
+
+      # Apply Terraform configuration
+      - name: Terraform Apply
+        working-directory: ./INFRA
+        run: terraform apply -auto-approve tfplan
+
+      # Export AKS info as job outputs (if you output them in TF)
+      - name: Get AKS Cluster Info
+        id: aks
+        working-directory: ./INFRA
+        run: |
+          AKS_NAME=$(terraform output -raw aks_name)
+          RG_NAME=$(terraform output -raw resource_group_name)
+          echo "AKS_NAME=$AKS_NAME" >> $GITHUB_ENV
+          echo "RG_NAME=$RG_NAME" >> $GITHUB_ENV
+          echo "aks_name=$AKS_NAME" >> $GITHUB_OUTPUT
+          echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
+
+  # -----------------------------------------------------
+  # 2️⃣ DEPLOY APP TO THE NEWLY PROVISIONED CLUSTER
+  # -----------------------------------------------------
+  deploy:
+    name: Deploy Application to AKS
+    runs-on: ubuntu-latest
+    needs: provision
     defaults:
       run:
         shell: bash
@@ -35,7 +175,10 @@ jobs:
       # Get AKS credentials
       - name: Get AKS Credentials
         run: |
-          az aks get-credentials --resource-group $RESOURCE_GROUP --name $AKS_CLUSTER_NAME --overwrite-existing
+          az aks get-credentials \
+            --resource-group ${{ needs.provision.outputs.rg_name }} \
+            --name ${{ needs.provision.outputs.aks_name }} \
+            --overwrite-existing
 
       # Wait for AKS nodes to be ready
       - name: Wait for AKS Nodes Ready
