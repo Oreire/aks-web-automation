@@ -24,10 +24,12 @@ output "kube_config_host" {
 }
 
 output "aks_name" {
-  value = azurerm_kubernetes_cluster.aks.name
+  description = "Name of the AKS cluster"
+  value       = azurerm_kubernetes_cluster.aks_cluster.name
 }
 
 output "resource_group_name" {
-  value = azurerm_resource_group.aks_rg.name
+  description = "Name of the resource group"
+  value       = azurerm_resource_group.aks_rg.name
 }
 
