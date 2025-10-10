@@ -110,7 +110,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Login to Azure
+      # Login to Azure (for CLI use)
       - name: Azure Login
         uses: azure/login@v1
         with:
@@ -125,19 +125,34 @@ jobs:
       # Initialize Terraform
       - name: Terraform Init
         working-directory: ./INFRA
+        env:
+          ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
         run: terraform init
 
       # Plan Terraform changes
       - name: Terraform Plan
         working-directory: ./INFRA
+        env:
+          ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
         run: terraform plan -out=tfplan
 
       # Apply Terraform configuration
       - name: Terraform Apply
         working-directory: ./INFRA
+        env:
+          ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
         run: terraform apply -auto-approve tfplan
 
-      # Export AKS info as job outputs (if you output them in TF)
+      # Export AKS cluster info from Terraform outputs
       - name: Get AKS Cluster Info
         id: aks
         working-directory: ./INFRA
@@ -150,7 +165,7 @@ jobs:
           echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
 
   # -----------------------------------------------------
-  # 2️⃣ DEPLOY APP TO THE NEWLY PROVISIONED CLUSTER
+  # 2️⃣ DEPLOY APP TO THE PROVISIONED AKS CLUSTER
   # -----------------------------------------------------
   deploy:
     name: Deploy Application to AKS
@@ -164,7 +179,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Azure login
+      # Azure login (for az CLI)
       - name: Azure Login
         uses: azure/login@v1
         with:
@@ -172,7 +187,7 @@ jobs:
           enable-AzPSSession: false
           environment: AzureCloud
 
-      # Get AKS credentials
+      # Get AKS credentials for kubectl
       - name: Get AKS Credentials
         run: |
           az aks get-credentials \
@@ -195,7 +210,7 @@ jobs:
             sleep 20
           done
 
-      # Deploy to Kubernetes
+      # Deploy Kubernetes manifests
       - name: Deploy Kubernetes Manifests
         run: |
           echo "Deploying Kubernetes manifests..."
@@ -217,7 +232,7 @@ jobs:
             sleep 10
           done
 
-      # Print LoadBalancer IP in job summary
+      # Show external URL
       - name: Show LoadBalancer IP
         run: |
           echo "✅ Application is accessible at http://$LB_IP"
