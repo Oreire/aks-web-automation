@@ -126,6 +126,7 @@ jobs:
 
       - name: Create backend.tfvars
         run: |
+          mkdir -p INFRA
           echo 'resource_group_name  = "aks-resource-group"' > backend.tfvars
           echo 'storage_account_name = "k8scloudtfstateuks"' >> backend.tfvars
           echo 'container_name       = "tfstate"' >> backend.tfvars
