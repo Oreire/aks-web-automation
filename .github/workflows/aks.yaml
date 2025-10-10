@@ -126,12 +126,12 @@ jobs:
 
       - name: Create backend.tfvars
         run: |
-          mkdir -p INFRA
-          echo 'resource_group_name  = "aks-resource-group"' > backend.tfvars
-          echo 'storage_account_name = "k8scloudtfstateuks"' >> backend.tfvars
-          echo 'container_name       = "tfstate"' >> backend.tfvars
-          echo 'key                  = "terraform.tfstate"' >> backend.tfvars
-          echo 'access_key           = "${{ secrets.AZURE_STORAGE_KEY }}"' >> backend.tfvars
+         echo 'resource_group_name  = "aks-resource-group"' > INFRA/backend.tfvars
+         echo 'storage_account_name = "k8scloudtfstateuks"' >> INFRA/backend.tfvars
+         echo 'container_name       = "tfstate"' >> INFRA/backend.tfvars
+         echo 'key                  = "terraform.tfstate"' >> INFRA/backend.tfvars
+         echo 'access_key           = "${{ secrets.AZURE_STORAGE_KEY }}"' >> INFRA/backend.tfvars
+
 
       - name: Terraform Init
         working-directory: ./INFRA
