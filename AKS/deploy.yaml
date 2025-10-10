@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: glanik-deployment
+  name: lanik-deployment
   labels:
-    app: glanik-app
+    app: lanik-app
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: glanik-app
+      app: lanik-app
   template:
     metadata:
       labels:
-        app: glanik-app
+        app: lanik-app
     spec:
       containers:
         - name: my-container
-          image: docker.io/oresky73/ghs-nginx-app46
+          image: docker.io/oresky73/webaz:v1.0.0
           ports:
             - containerPort: 80
           resources:
