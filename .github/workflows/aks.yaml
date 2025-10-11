@@ -103,6 +103,7 @@ jobs:
   # -----------------------------------------------------
   # 2️⃣ DEPLOY APP TO THE PROVISIONED AKS CLUSTER
   # -----------------------------------------------------
+  
   deploy:
     name: Deploy Application to AKS
     runs-on: ubuntu-latest
@@ -113,11 +114,19 @@ jobs:
         shell: bash
 
     steps:
-      # --- Checkout code ---
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # --- Azure authentication ---
+      - name: Install Stable Azure CLI (fix invalid API version)
+        run: |
+          echo "Installing Azure CLI v2.64.0 (stable)"
+          sudo apt-get update -y
+          sudo apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg
+          curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
+          echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
+          sudo apt-get update -y
+          sudo apt-get install -y azure-cli=2.64.0-1~$(lsb_release -cs)
+
       - name: Azure Login
         uses: azure/login@v1
         with:
@@ -125,37 +134,36 @@ jobs:
           enable-AzPSSession: false
           environment: AzureCloud
 
-      # --- Ensure Azure CLI is at a stable version (Quick Fix) ---
-      - name: Install stable Azure CLI
+      - name: Retrieve Terraform Outputs
+        id: tf-outputs
         run: |
-          echo "🔧 Ensuring stable Azure CLI version..."
-          sudo apt-get update -y
-          sudo apt-get install -y azure-cli
-          az version
-
-      # --- Retrieve AKS credentials safely ---
-      - name: Get AKS Credentials
-        run: |
-          echo "Retrieving AKS credentials..."
-          RG_NAME="${{ needs.provision.outputs.rg_name }}"
-          AKS_NAME="${{ needs.provision.outputs.aks_name }}"
-
+          echo "Fetching AKS output values from Terraform..."
+          cd INFRA
+          RG_NAME=$(terraform output -raw resource_group_name)
+          AKS_NAME=$(terraform output -raw aks_name)
+          echo "RG_NAME=$RG_NAME" >> $GITHUB_ENV
+          echo "AKS_NAME=$AKS_NAME" >> $GITHUB_ENV
+          echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "aks_name=$AKS_NAME" >> $GITHUB_OUTPUT
           echo "Using Resource Group: $RG_NAME"
           echo "Using AKS Cluster: $AKS_NAME"
 
+      - name: Get AKS Credentials (Stable API)
+        run: |
+          echo "Retrieving AKS credentials..."
           az aks get-credentials \
             --resource-group "$RG_NAME" \
             --name "$AKS_NAME" \
+            --api-version "2025-04-01" \
             --overwrite-existing \
             --only-show-errors
 
-      # --- Wait for AKS Nodes Ready ---
       - name: Wait for AKS Nodes Ready
         run: |
           echo "Waiting for AKS nodes to be ready..."
           for i in {1..30}; do
-            READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready')
-            TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+            READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready' || true)
+            TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || true)
             if [ "$TOTAL_NODES" -gt 0 ] && [ "$READY_NODES" -eq "$TOTAL_NODES" ]; then
               echo "✅ All $READY_NODES AKS nodes are ready!"
               break
@@ -164,13 +172,11 @@ jobs:
             sleep 20
           done
 
-      # --- Deploy Kubernetes Manifests ---
       - name: Deploy Kubernetes Manifests
         run: |
           echo "🚀 Deploying Kubernetes manifests..."
           kubectl apply -f AKS/ || kubectl replace --force -f AKS/
 
-      # --- Wait for LoadBalancer IP ---
       - name: Wait for LoadBalancer IP
         id: get-lb-ip
         run: |
@@ -187,7 +193,6 @@ jobs:
             sleep 10
           done
 
-      # --- Display LoadBalancer IP ---
       - name: Show LoadBalancer IP
         run: |
           echo "✅ Application is accessible at: http://$LB_IP"
