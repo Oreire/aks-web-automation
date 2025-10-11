@@ -117,16 +117,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Fix Invalid API Version Error by Installing Stable Azure CLI
-      - name: Install Stable Azure CLI (fix invalid API version)
+      # Fix Invalid API Version Error + Allow Downgrade of Azure CLI
+      - name: Install Stable Azure CLI (v2.64.0)
         run: |
-          echo "Installing Azure CLI v2.64.0 (stable)"
+          echo "🧩 Installing Azure CLI v2.64.0 (stable)"
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/azure-cli.sources || true
           sudo apt-get update -y
           sudo apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg
           curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
           echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
           sudo apt-get update -y
-          sudo apt-get install -y azure-cli=2.64.0-1~$(lsb_release -cs)
+          sudo apt-get install -y --allow-downgrades azure-cli=2.64.0-1~$(lsb_release -cs)
 
       - name: Azure Login
         uses: azure/login@v1
@@ -138,7 +139,7 @@ jobs:
       - name: Retrieve Terraform Outputs
         id: tf-outputs
         run: |
-          echo "Fetching AKS output values from Terraform..."
+          echo "📦 Fetching AKS output values from Terraform..."
           cd INFRA
           RG_NAME=$(terraform output -raw resource_group_name)
           AKS_NAME=$(terraform output -raw aks_name)
@@ -151,7 +152,7 @@ jobs:
 
       - name: Get AKS Credentials (Stable API)
         run: |
-          echo "Retrieving AKS credentials..."
+          echo "🔑 Retrieving AKS credentials..."
           az aks get-credentials \
             --resource-group "$RG_NAME" \
             --name "$AKS_NAME" \
@@ -161,7 +162,7 @@ jobs:
 
       - name: Wait for AKS Nodes Ready
         run: |
-          echo "Waiting for AKS nodes to be ready..."
+          echo "⏳ Waiting for AKS nodes to be ready..."
           for i in {1..30}; do
             READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready' || true)
             TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || true)
@@ -181,7 +182,7 @@ jobs:
       - name: Wait for LoadBalancer IP
         id: get-lb-ip
         run: |
-          echo "Waiting for LoadBalancer IP..."
+          echo "🌐 Waiting for LoadBalancer IP..."
           for i in {1..30}; do
             IP=$(kubectl get svc lanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
             if [ -n "$IP" ]; then
@@ -197,3 +198,4 @@ jobs:
       - name: Show LoadBalancer IP
         run: |
           echo "✅ Application is accessible at: http://$LB_IP"
+
