@@ -135,6 +135,11 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           enable-AzPSSession: false
           environment: AzureCloud
+      - name: 🧰 Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
 
       - name: Retrieve Terraform Outputs
         id: tf-outputs
