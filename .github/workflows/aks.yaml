@@ -431,7 +431,6 @@ jobs:
           az aks get-credentials \
             --resource-group "$RG_NAME" \
             --name "$AKS_NAME" \
-            --api-version "2025-04-01" \
             --overwrite-existing \
             --only-show-errors
 
