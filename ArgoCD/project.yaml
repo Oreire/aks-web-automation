@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: lanik-project
+  namespace: argocd
+spec:
+  description: Project for the Lanik AKS web application
+
+  # Restrict where apps in this project can be deployed
+  destinations:
+    - namespace: default
+      server: https://kubernetes.default.svc
+
+  # Allow ArgoCD to pull manifests only from this repo
+  sourceRepos:
+    - 'https://github.com/Oreire/aks-web-automation.git'
+
+  # Define cluster-wide roles (optional, can restrict more tightly)
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # Optional: sync windows or approvals (advanced use)
+  syncWindows: []
+
+  # Optional: Allow automated syncs and self-heal for this project
+  orphanedResources:
+    warn: true
