@@ -1,7 +1,7 @@
-output "kube_config" {
-  value     = azurerm_kubernetes_cluster.aks_cluster.kube_config_raw
-  sensitive = true
-}
+# output "kube_config" {
+#   value     = azurerm_kubernetes_cluster.aks_cluster.kube_config_raw
+#   sensitive = true
+# }
 
 output "kube_config_client_certificate" {
   value     = azurerm_kubernetes_cluster.aks_cluster.kube_config.0.client_certificate
@@ -24,12 +24,17 @@ output "kube_config_host" {
 }
 
 output "resource_group_name" {
-  description = "The name of the Azure Resource Group"
-  value       = azurerm_resource_group.rg.name
+  description = "Name of the Resource Group for the AKS cluster"
+  value       = azurerm_resource_group.aks_rg.name
 }
 
 output "aks_name" {
-  description = "The name of the AKS Cluster"
-  value       = azurerm_kubernetes_cluster.aks.name
+  description = "Name of the AKS cluster"
+  value       = azurerm_kubernetes_cluster.aks_cluster.name
 }
 
+output "aks_kube_config" {
+  description = "Kube config for connecting to the AKS cluster"
+  value       = azurerm_kubernetes_cluster.aks_cluster.kube_config_raw
+  sensitive   = true
+}
