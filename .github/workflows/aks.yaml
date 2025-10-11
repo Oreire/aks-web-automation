@@ -9,8 +9,6 @@ on:
 env:
   IMAGE_NAME: docker.io/webaz
   IMAGE_TAG: latest
-  RESOURCE_GROUP: aks-resource-group
-  AKS_CLUSTER_NAME: aks-cluster
   NAMESPACE: default
 
 jobs:
@@ -43,6 +41,7 @@ jobs:
         with:
           terraform_version: 1.9.5
 
+      # Optional backend file creation (only if your backend expects these)
       - name: Create backend.tfvars
         run: |
           echo 'resource_group_name  = "aks-resource-group"' > INFRA/backend.tfvars
@@ -51,6 +50,7 @@ jobs:
           echo 'key                  = "terraform.tfstate"' >> INFRA/backend.tfvars
           echo 'access_key           = "${{ secrets.AZURE_STORAGE_KEY }}"' >> INFRA/backend.tfvars
 
+      # Initialize Terraform (backend config is optional)
       - name: Terraform Init
         working-directory: ./INFRA
         env:
@@ -58,7 +58,12 @@ jobs:
           ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
           ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
-        run: terraform init -backend-config="backend.tfvars"
+        run: |
+          if [ -f "backend.tfvars" ]; then
+            terraform init -backend-config="backend.tfvars"
+          else
+            terraform init
+          fi
 
       - name: Terraform Plan
         working-directory: ./INFRA
@@ -78,19 +83,22 @@ jobs:
           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
         run: terraform apply -auto-approve tfplan
 
+      # ✅ Fixed Output Capture (filter ::debug:: lines)
       - name: Get AKS Cluster Info
         id: aks
         working-directory: ./INFRA
         run: |
-          AKS_NAME=$(terraform output -raw aks_name 2>/dev/null)
-          RG_NAME=$(terraform output -raw resource_group_name 2>/dev/null)
+          AKS_NAME=$(terraform output -raw aks_name 2>/dev/null | grep -v "::" || echo "")
+          RG_NAME=$(terraform output -raw resource_group_name 2>/dev/null | grep -v "::" || echo "")
 
-          echo "AKS_NAME=$AKS_NAME" >> $GITHUB_ENV
-          echo "RG_NAME=$RG_NAME" >> $GITHUB_ENV
+          echo "AKS_NAME=${AKS_NAME}" >> $GITHUB_ENV
+          echo "RG_NAME=${RG_NAME}" >> $GITHUB_ENV
 
-          echo "aks_name=$AKS_NAME" >> $GITHUB_OUTPUT
-          echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
-          echo "AKS Cluster: $AKS_NAME"
+          echo "aks_name=${AKS_NAME}" >> $GITHUB_OUTPUT
+          echo "rg_name=${RG_NAME}" >> $GITHUB_OUTPUT
+
+          echo "✅ AKS Cluster Name: ${AKS_NAME}"
+          echo "✅ Resource Group: ${RG_NAME}"
 
   # -----------------------------------------------------
   # 2️⃣ DEPLOY APP TO THE PROVISIONED AKS CLUSTER
@@ -117,9 +125,10 @@ jobs:
 
       - name: Get AKS Credentials
         run: |
+          echo "Retrieving AKS credentials..."
           az aks get-credentials \
-            --resource-group ${{ needs.provision.outputs.rg_name }} \
-            --name ${{ needs.provision.outputs.aks_name }} \
+            --resource-group "${{ needs.provision.outputs.rg_name }}" \
+            --name "${{ needs.provision.outputs.aks_name }}" \
             --overwrite-existing
 
       - name: Wait for AKS Nodes Ready
@@ -129,7 +138,7 @@ jobs:
             READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready')
             TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
             if [ "$TOTAL_NODES" -gt 0 ] && [ "$READY_NODES" -eq "$TOTAL_NODES" ]; then
-              echo "All $READY_NODES AKS nodes are ready!"
+              echo "✅ All $READY_NODES AKS nodes are ready!"
               break
             fi
             echo "Nodes not ready yet. Waiting 20s..."
@@ -138,7 +147,7 @@ jobs:
 
       - name: Deploy Kubernetes Manifests
         run: |
-          echo "Deploying Kubernetes manifests..."
+          echo "🚀 Deploying Kubernetes manifests..."
           kubectl apply -f AKS/ || kubectl replace --force -f AKS/
 
       - name: Wait for LoadBalancer IP
@@ -146,17 +155,17 @@ jobs:
         run: |
           echo "Waiting for LoadBalancer IP..."
           for i in {1..30}; do
-            IP=$(kubectl get svc lanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            IP=$(kubectl get svc lanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
             if [ -n "$IP" ]; then
               echo "LoadBalancer IP is: $IP"
               echo "LB_IP=$IP" >> $GITHUB_ENV
               echo "lb_ip=$IP" >> $GITHUB_OUTPUT
               break
             fi
+            echo "Still waiting for LoadBalancer IP... (Attempt $i)"
             sleep 10
           done
 
       - name: Show LoadBalancer IP
         run: |
-          echo "✅ Application is accessible at http://$LB_IP"
-
+          echo "✅ Application is accessible at: http://$LB_IP"
