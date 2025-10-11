@@ -82,12 +82,15 @@ jobs:
         id: aks
         working-directory: ./INFRA
         run: |
-          AKS_NAME=$(terraform output -raw aks_name)
-          RG_NAME=$(terraform output -raw resource_group_name)
+          AKS_NAME=$(terraform output -raw aks_name 2>/dev/null)
+          RG_NAME=$(terraform output -raw resource_group_name 2>/dev/null)
+
           echo "AKS_NAME=$AKS_NAME" >> $GITHUB_ENV
           echo "RG_NAME=$RG_NAME" >> $GITHUB_ENV
+
           echo "aks_name=$AKS_NAME" >> $GITHUB_OUTPUT
           echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "AKS Cluster: $AKS_NAME"
 
   # -----------------------------------------------------
   # 2️⃣ DEPLOY APP TO THE PROVISIONED AKS CLUSTER
