@@ -176,10 +176,10 @@ jobs:
       #     echo "Using Resource Group: $RG_NAME"
       #     echo "Using AKS Cluster: $AKS_NAME"
 
-      - name: 📦 Fetch AKS output values from Terraform
+      - name: 📦 Fetching AKS output values from Terraform
+        working-directory: ./INFRA
         run: |
           echo "📦 Fetching AKS output values from Terraform..."
-          cd INFRA
           terraform init -reconfigure -input=false \
             -backend-config="resource_group_name=aks-resource-group" \
             -backend-config="storage_account_name=k8scloudtfstateuks" \
@@ -189,8 +189,8 @@ jobs:
           RG_NAME=$(terraform output -raw resource_group_name 2>/dev/null)
           AKS_NAME=$(terraform output -raw aks_name 2>/dev/null)
 
-          RG_NAME=${RG_NAME:-"unknown-rg"}
-          AKS_NAME=${AKS_NAME:-"unknown-aks"}
+          RG_NAME="${RG_NAME:-unknown-rg}"
+          AKS_NAME="${AKS_NAME:-unknown-aks}"
 
           echo "RG_NAME=$RG_NAME" >> $GITHUB_ENV
           echo "AKS_NAME=$AKS_NAME" >> $GITHUB_ENV
@@ -199,6 +199,7 @@ jobs:
 
           echo "Using Resource Group: $RG_NAME"
           echo "Using AKS Cluster: $AKS_NAME"
+
         env:
           ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
           ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
