@@ -527,3 +527,266 @@ Tailor the CodeQL languages / Semgrep rules to your repo.
 Switch Docker push to Azure Container Registry (ACR) instead of Docker Hub.
 
 Add an optional manual approval step between provision and deploy (for production).
+
+
+
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+That’s excellent news 🎉 — your end-to-end AKS provisioning and deployment pipeline is now fully working!
+
+Below is a **comprehensive, production-grade README.md** for your repository. It documents every moving part of your project — Terraform provisioning, GitHub Actions automation, AKS deployment, load balancer access, troubleshooting, and security best practices.
+
+---
+
+## 🚀 **AKS Web Automation — Infrastructure-as-Code & CI/CD Deployment**
+
+### **Overview**
+
+This repository implements a **complete Infrastructure-as-Code (IaC)** and **CI/CD pipeline** for provisioning and deploying containerised applications on **Azure Kubernetes Service (AKS)**.
+
+It automates:
+
+* Provisioning of Azure infrastructure using **Terraform**
+* Deployment of containerised workloads to AKS using **GitHub Actions**
+* Exposure of the application via an Azure Load Balancer
+* Automated validation and diagnostics for reliability
+
+---
+
+## 🧱 **Architecture Overview**
+
+**Core Components:**
+
+* **Azure Resource Group** — Logical container for AKS resources.
+* **Azure Kubernetes Service (AKS)** — Managed Kubernetes cluster for running containers.
+* **Azure Storage Account** — Remote Terraform state backend.
+* **GitHub Actions Workflow** — Fully automated provisioning + deployment pipeline.
+* **Docker Hub / Azure Container Registry** — Container image source.
+* **Kubernetes Service (LoadBalancer)** — Exposes the deployed app publicly.
+
+**High-level flow:**
+
+```
+Developer Commit → GitHub Actions → Terraform Provisioning → AKS Deployment → LoadBalancer Access
+```
+
+---
+
+## ⚙️ **Repository Structure**
+
+```
+├── INFRA/
+│   ├── main.tf                  # Terraform configuration for AKS + supporting resources
+│   ├── variables.tf             # Input variables for AKS cluster
+│   ├── outputs.tf               # Terraform outputs (AKS name, RG name, etc.)
+│   └── backend.tfvars           # Backend configuration for remote state
+│
+├── AKS/
+│   ├── deployment.yaml          # Kubernetes Deployment manifest
+│   └── service.yaml             # Kubernetes LoadBalancer Service manifest
+│
+├── .github/
+│   └── workflows/
+│       └── provision-deploy.yml # CI/CD pipeline definition
+│
+└── README.md                    # Project documentation
+```
+
+---
+
+## 🧩 **GitHub Actions Workflow Summary**
+
+### Workflow Name:
+
+**`Provision and Deploy App to AKS`**
+
+### Trigger:
+
+* Runs automatically on **push to `main` branch**
+* Can also be triggered **manually** via `workflow_dispatch`
+
+### Jobs:
+
+#### **1️⃣ Provision AKS Infrastructure**
+
+Handles provisioning via Terraform:
+
+* Logs into Azure via `azure/login`
+* Initializes Terraform with backend in Azure Storage
+* Automatically imports existing resource groups (if any)
+* Plans and applies Terraform configuration
+* Exports key outputs:
+
+  * `AKS_NAME`
+  * `RESOURCE_GROUP_NAME`
+
+**Outputs:** Used by subsequent jobs.
+
+#### **2️⃣ Deploy Application to AKS**
+
+Handles deployment of your Dockerized application to AKS:
+
+* Installs Azure CLI (pinned version `2.64.0` for stability)
+* Retrieves AKS credentials (`az aks get-credentials`)
+* Waits for AKS nodes to become ready
+* Deploys manifests from `AKS/`
+* Waits until a LoadBalancer IP is assigned
+* Validates external connectivity using `curl`
+* Performs diagnostics (pods, services, events) if connection fails
+
+**Successful Run Example:**
+
+```bash
+✅ All AKS nodes are ready!
+✅ Application deployed successfully
+✅ Application is accessible at: http://4.250.192.95
+```
+
+---
+
+## 🐳 **Container Registry & Image Management**
+
+### Docker Image
+
+The workflow supports both:
+
+* **Public Docker Hub images** (e.g. `docker.io/oresky73/webaz:latest`)
+* **Private repositories** via Docker Hub secret authentication
+
+**Private registry setup:**
+
+1. Add GitHub secrets:
+
+   * `DOCKER_USERNAME`
+   * `DOCKER_PASSWORD`
+2. Workflow automatically creates `dockerhub-secret` in AKS.
+
+**Recommended alternative:** Use **Azure Container Registry (ACR)** for private enterprise hosting.
+
+---
+
+## ☁️ **Terraform Configuration Summary**
+
+| Resource                                  | Description                       |
+| ----------------------------------------- | --------------------------------- |
+| `azurerm_resource_group.aks_rg`           | Container for all Azure resources |
+| `azurerm_kubernetes_cluster.aks_cluster`  | Managed AKS cluster               |
+| `azurerm_storage_account`                 | Stores Terraform remote state     |
+| `azurerm_container_registry` *(optional)* | For private image hosting         |
+| Outputs                                   | `aks_name`, `resource_group_name` |
+
+**Example Outputs**
+
+```bash
+terraform output
+aks_name = "aks-cluster"
+resource_group_name = "aks-resource-group"
+```
+
+---
+
+## 🌐 **Accessing the Application**
+
+After a successful deployment, the app is accessible via:
+
+```
+http://<LoadBalancer-IP>
+```
+
+You can check manually:
+
+```bash
+kubectl get svc
+```
+
+Example:
+
+```
+NAME               TYPE           CLUSTER-IP    EXTERNAL-IP    PORT(S)        AGE
+lanik-lb-service   LoadBalancer   10.0.213.65   4.250.192.95   80:31690/TCP   23m
+```
+
+---
+
+## 🔐 **Secrets & Environment Variables**
+
+| Secret                         | Description                                   |
+| ------------------------------ | --------------------------------------------- |
+| `AZURE_CREDENTIALS`            | Azure Service Principal credentials JSON      |
+| `AZURE_STORAGE_KEY`            | Access key for Terraform remote state storage |
+| `DOCKER_USERNAME` *(optional)* | Docker Hub username                           |
+| `DOCKER_PASSWORD` *(optional)* | Docker Hub token/password                     |
+
+**Azure credentials format:**
+
+```json
+{
+  "clientId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "clientSecret": "xxxxxxxxxxxxxxxxxxxx",
+  "subscriptionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "tenantId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+```
+
+---
+
+## 🧠 **Troubleshooting**
+
+| Issue                           | Cause                           | Fix                                                   |
+| ------------------------------- | ------------------------------- | ----------------------------------------------------- |
+| `Resource group already exists` | Terraform conflict              | Automatically handled by import step                  |
+| `ErrImagePull`                  | Wrong image tag or private repo | Validate image existence or create `dockerhub-secret` |
+| `LoadBalancer IP not assigned`  | Cluster provisioning delay      | Workflow auto-retries every 10 seconds                |
+| `No endpoints`                  | Pods failing                    | Check `kubectl get pods` for crash/error              |
+| `curl failed`                   | Pod not ready or network rule   | Review diagnostics output from workflow               |
+
+---
+
+## 🧰 **Best Practices Implemented**
+
+* ✅ **Idempotent Terraform execution** (imports existing resources)
+* ✅ **Remote backend** for collaborative state management
+* ✅ **Credential isolation** using GitHub Secrets
+* ✅ **LoadBalancer readiness validation**
+* ✅ **Container image authentication**
+* ✅ **Declarative manifests and automated rollout**
+* ✅ **Version-pinned tooling (Terraform 1.9.5 / Azure CLI 2.64.0)**
+
+---
+
+## 🧾 **Sample Commands for Local Debugging**
+
+```bash
+# Initialize and plan Terraform locally
+cd INFRA
+terraform init -reconfigure -backend-config="backend.tfvars"
+terraform plan -out=tfplan
+
+# Apply changes
+terraform apply -auto-approve tfplan
+
+# Get AKS credentials
+az aks get-credentials --resource-group aks-resource-group --name aks-cluster --overwrite-existing
+
+# Inspect cluster
+kubectl get nodes
+kubectl get svc
+kubectl get pods -o wide
+```
+
+---
+
+## 🧩 **Future Enhancements**
+
+* Integrate **Azure Container Registry (ACR)** build & push stage
+* Add **Helm deployment** support for modular releases
+* Introduce **Ingress + SSL (Let’s Encrypt)** for secure endpoints
+* Add **Prometheus + Grafana** for monitoring and observability
+* Implement **GitOps (ArgoCD or Flux)** for continuous delivery
+
+
+## 👨‍💻 **Author**
+
+**Larry Ajayi**
+DevSecOps & Cloud Engineer
+💡 *Infrastructure as Code | Secure CI/CD | Azure & Kubernetes Automation*
+
