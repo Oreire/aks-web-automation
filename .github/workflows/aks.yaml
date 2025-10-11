@@ -141,15 +141,11 @@ jobs:
         with:
           terraform_version: 1.9.5
       
-      # - name: 📦 Initialize Terraform Backend
-      #   run: |
-      #     echo "🪣 Initializing Terraform backend..."
-      #     cd INFRA
-      #     terraform init -reconfigure \
-      #     -backend-config="resource_group_name="aks-resource-group" \
-      #     -backend-config="storage_account_name="k8scloudtfstateuks" \
-      #     -backend-config="container_name="tfstate"  \ 
-      #     -backend-config="key=${{ secrets.AZURE_STORAGE_KEY }}"
+      - name: 🔐 Azure Login (Service Principal)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
 
       - name: 🪣 Initialize Terraform backend
         run: |
