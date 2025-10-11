@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: my-container
-          image: docker.io/oresky73/webaz:latest # ghs-nginx-app46:latest
+          image:  nopcommerceteam/nocommerce:4.50.0
           ports:
             - containerPort: 80
           resources:
