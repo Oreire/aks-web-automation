@@ -180,18 +180,23 @@ jobs:
         run: |
           echo "📦 Fetching AKS output values from Terraform..."
           cd INFRA
-          terraform init -reconfigure \
+          terraform init -reconfigure -input=false \
             -backend-config="resource_group_name=aks-resource-group" \
             -backend-config="storage_account_name=k8scloudtfstateuks" \
             -backend-config="container_name=tfstate" \
             -backend-config="key=infra.tfstate"
 
-          RG_NAME=$(terraform output -raw resource_group_name)
-          AKS_NAME=$(terraform output -raw aks_name)
+          RG_NAME=$(terraform output -raw resource_group_name 2>/dev/null)
+          AKS_NAME=$(terraform output -raw aks_name 2>/dev/null)
+
+          RG_NAME=${RG_NAME:-"unknown-rg"}
+          AKS_NAME=${AKS_NAME:-"unknown-aks"}
+
           echo "RG_NAME=$RG_NAME" >> $GITHUB_ENV
           echo "AKS_NAME=$AKS_NAME" >> $GITHUB_ENV
           echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
           echo "aks_name=$AKS_NAME" >> $GITHUB_OUTPUT
+
           echo "Using Resource Group: $RG_NAME"
           echo "Using AKS Cluster: $AKS_NAME"
         env:
@@ -199,7 +204,6 @@ jobs:
           ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
           ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
-
 
       - name: Get AKS Credentials (Stable API)
         run: |
