@@ -286,17 +286,13 @@ jobs:
         with:
           terraform_version: 1.9.5
 
-      # Create backend.tfvars (use a consistent backend key)
       - name: Create backend.tfvars
         run: |
-          mkdir -p INFRA
-          cat > INFRA/backend.tfvars <<EOF
-          resource_group_name  = "aks-resource-group"
-          storage_account_name = "k8scloudtfstateuks"
-          container_name       = "tfstate"
-          key                  = "infra.tfstate"
-          access_key           = "${{ secrets.AZURE_STORAGE_KEY }}"
-          EOF
+          echo 'resource_group_name  = "aks-resource-group"' > INFRA/backend.tfvars
+          echo 'storage_account_name = "k8scloudtfstateuks"' >> INFRA/backend.tfvars
+          echo 'container_name       = "tfstate"' >> INFRA/backend.tfvars
+          echo 'key                  = "terraform.tfstate"' >> INFRA/backend.tfvars
+          echo 'access_key           = "${{ secrets.AZURE_STORAGE_KEY }}"' >> INFRA/backend.tfvars
 
       - name: Terraform Init
         working-directory: ./INFRA
@@ -305,11 +301,24 @@ jobs:
           ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
           ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+        run: terraform init -backend-config="backend.tfvars"
+
+      # Auto-Import Step: prevent RG already-exists failure
+      - name: Auto-import existing Resource Group if present
+        working-directory: ./INFRA
+        env:
+          ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
         run: |
-          if [ -f "backend.tfvars" ]; then
-            terraform init -backend-config="backend.tfvars"
+          echo "🩵 Checking if resource group exists..."
+          if az group show --name aks-resource-group --subscription $ARM_SUBSCRIPTION_ID >/dev/null 2>&1; then
+            echo "ℹ️ Resource group already exists. Importing into Terraform state..."
+            terraform import -no-color azurerm_resource_group.aks_rg \
+              "/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/aks-resource-group" || true
           else
-            terraform init -reconfigure -backend-config="use_azuread_auth=true"
+            echo "✅ Resource group does not exist. Terraform will create it."
           fi
 
       - name: Terraform Plan
@@ -330,27 +339,16 @@ jobs:
           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
         run: terraform apply -auto-approve tfplan
 
-      # ✅ Fixed Output Capture (write valid KEY=VALUE lines; filter debug lines)
       - name: Get AKS Cluster Info
         id: aks
         working-directory: ./INFRA
         run: |
           AKS_NAME=$(terraform output -raw aks_name 2>/dev/null | grep -v "::" || echo "")
           RG_NAME=$(terraform output -raw resource_group_name 2>/dev/null | grep -v "::" || echo "")
-
-          # Fail fast if outputs missing (helps detect config drift)
-          if [ -z "$AKS_NAME" ] || [ -z "$RG_NAME" ]; then
-            echo "❌ Terraform outputs missing. AKS_NAME='$AKS_NAME' RG_NAME='$RG_NAME'"
-            exit 1
-          fi
-
           echo "AKS_NAME=${AKS_NAME}" >> $GITHUB_ENV
           echo "RG_NAME=${RG_NAME}" >> $GITHUB_ENV
-
-          # Expose as job outputs for other jobs
           echo "aks_name=${AKS_NAME}" >> $GITHUB_OUTPUT
           echo "rg_name=${RG_NAME}" >> $GITHUB_OUTPUT
-
           echo "✅ AKS Cluster Name: ${AKS_NAME}"
           echo "✅ Resource Group: ${RG_NAME}"
 
@@ -366,21 +364,12 @@ jobs:
       run:
         shell: bash
 
-    env:
-      # Use the values exported by the provision job
-      AKS_NAME: ${{ needs.provision.outputs.aks_name }}
-      RG_NAME: ${{ needs.provision.outputs.rg_name }}
-      # IMAGE_NAME: ${{ env.IMAGE_NAME }}
-      # IMAGE_TAG: ${{ env.IMAGE_TAG }}
-      # NAMESPACE: ${{ env.NAMESPACE }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Install Stable Azure CLI (v2.64.0)
         run: |
-          echo "🧩 Installing Azure CLI v2.64.0 (stable)"
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/azure-cli.sources || true
           sudo apt-get update -y
           sudo apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg
@@ -396,23 +385,58 @@ jobs:
           enable-AzPSSession: false
           environment: AzureCloud
 
-      - name: 🧰 Setup Terraform (for any lightweight terraform needs)
+      - name: 🧰 Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.5
-
-      - name: 🔑 Get AKS Credentials (from provision job outputs)
+      
+      - name: 🪣 Initialize Terraform backend
         run: |
-          echo "🔑 Retrieving AKS credentials for cluster '$AKS_NAME' in RG '$RG_NAME'..."
+          cd INFRA
+          terraform init -reconfigure \
+            -backend-config="resource_group_name=aks-resource-group" \
+            -backend-config="storage_account_name=k8scloudtfstateuks" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=infra.tfstate"
+        env:
+          ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+
+      - name: 📦 Fetch AKS output values from Terraform
+        working-directory: ./INFRA
+        run: |
+          terraform init -reconfigure -input=false \
+            -backend-config="resource_group_name=aks-resource-group" \
+            -backend-config="storage_account_name=k8scloudtfstateuks" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=infra.tfstate"
+          RG_NAME=$(terraform output -raw resource_group_name || echo "unknown-rg")
+          AKS_NAME=$(terraform output -raw aks_name || echo "unknown-aks")
+          echo "RG_NAME=${RG_NAME}" >> $GITHUB_ENV
+          echo "AKS_NAME=${AKS_NAME}" >> $GITHUB_ENV
+          echo "rg_name=${RG_NAME}" >> $GITHUB_OUTPUT
+          echo "aks_name=${AKS_NAME}" >> $GITHUB_OUTPUT
+          echo "Using Resource Group: ${RG_NAME}"
+          echo "Using AKS Cluster: ${AKS_NAME}"
+        env:
+          ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+
+      - name: Get AKS Credentials
+        run: |
           az aks get-credentials \
             --resource-group "$RG_NAME" \
             --name "$AKS_NAME" \
+            --api-version "2025-04-01" \
             --overwrite-existing \
             --only-show-errors
 
       - name: Wait for AKS Nodes Ready
         run: |
-          echo "⏳ Waiting for AKS nodes to be ready..."
           for i in {1..30}; do
             READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready' || true)
             TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || true)
@@ -426,26 +450,26 @@ jobs:
 
       - name: Deploy Kubernetes Manifests
         run: |
-          echo "🚀 Deploying Kubernetes manifests..."
           kubectl apply -f AKS/ || kubectl replace --force -f AKS/
 
       - name: Wait for LoadBalancer IP
         id: get-lb-ip
         run: |
-          echo "🌐 Waiting for LoadBalancer IP..."
-          LB_IP=""
           for i in {1..30}; do
-            LB_IP=$(kubectl get svc lanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
-            if [ -n "$LB_IP" ]; then
-              echo "LoadBalancer IP is: $LB_IP"
-              echo "LB_IP=$LB_IP" >> $GITHUB_ENV
-              echo "lb_ip=$LB_IP" >> $GITHUB_OUTPUT
+            IP=$(kubectl get svc lanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+            if [ -n "$IP" ]; then
+              echo "LoadBalancer IP is: $IP"
+              echo "LB_IP=$IP" >> $GITHUB_ENV
+              echo "lb_ip=$IP" >> $GITHUB_OUTPUT
               break
             fi
             echo "Still waiting for LoadBalancer IP... (Attempt $i)"
             sleep 10
           done
 
+      # - name: Show LoadBalancer IP
+      #   run: echo " Application is accessible at: http://$LB_IP"
+      
       - name: Show LoadBalancer IP
         run: |
-          echo "✅ Application is accessible at: http://$LB_IP"
+           echo "✅ Application is accessible at: http://$LB_IP"
