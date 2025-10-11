@@ -135,10 +135,23 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           enable-AzPSSession: false
           environment: AzureCloud
+
       - name: 🧰 Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.5
+      
+      - name: 📦 Initialize Terraform Backend
+        run: |
+          echo "🪣 Initializing Terraform backend..."
+          cd INFRA
+          terraform init -reconfigure \
+          -backend-config="resource_group_name="aks-resource-group" \
+          -backend-config="storage_account_name="k8scloudtfstateuks" \
+          -backend-config="container_name="tfstate"  \ 
+          -backend-config="key=${{ secrets.AZURE_STORAGE_KEY }}"
+
+
 
 
       - name: Retrieve Terraform Outputs
