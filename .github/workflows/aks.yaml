@@ -130,7 +130,7 @@ jobs:
           sudo apt-get install -y --allow-downgrades azure-cli=2.64.0-1~$(lsb_release -cs)
 
       - name: Azure Login
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           enable-AzPSSession: false
