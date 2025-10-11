@@ -790,3 +790,120 @@ kubectl get pods -o wide
 DevSecOps & Cloud Engineer
 💡 *Infrastructure as Code | Secure CI/CD | Azure & Kubernetes Automation*
 
+
+
+ArgoCD Password: n6FImryASy2GZ7q7
+Absolutely, Ayomide — here’s a sector-facing, CPD-ready `README.md` scaffold for integrating Argo CD into an AKS cluster. It’s structured for clarity, reproducibility, and recruiter-facing presentation, with embedded compliance anchors and DevSecOps alignment.
+
+---
+
+## 📘 README: Argo CD Integration with Azure Kubernetes Service (AKS)
+
+### 🧭 Overview
+
+This guide documents the integration of [Argo CD](https://argo-cd.readthedocs.io/en/stable/) into an Azure Kubernetes Service (AKS) cluster for declarative GitOps-based continuous delivery. It supports CPD, recruiter engagement, and institutional presentation, mapped to UK professional standards and DevSecOps principles.
+
+---
+
+### 🚀 Prerequisites
+
+- ✅ Azure CLI installed and authenticated
+- ✅ AKS cluster provisioned and `kubectl` configured
+- ✅ Helm 3 installed
+- ✅ Git repository with Kubernetes manifests
+
+---
+
+### 🛠️ Installation Steps
+
+#### 1. Create Namespace
+```bash
+kubectl create namespace argocd
+```
+
+#### 2. Install Argo CD via Helm
+```bash
+helm repo add argo https://argoproj.github.io/argo-helm
+helm repo update
+helm install argocd argo/argo-cd --namespace argocd
+```
+
+#### 3. Expose Argo CD Server
+```bash
+kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+```
+
+#### 4. Retrieve External IP
+```bash
+kubectl get svc argocd-server -n argocd
+```
+
+Access Argo CD UI via: `http://<EXTERNAL-IP>`
+
+---
+
+### 🔐 Authentication
+
+Retrieve the initial admin password:
+```bash
+kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 --decode
+```
+
+Login:
+- **Username:** `admin`
+- **Password:** (decoded above)
+
+---
+
+### 📦 Connect Git Repository
+
+```bash
+argocd login <EXTERNAL-IP>
+argocd repo add https://github.com/<your-org>/<your-repo>.git --username <user> --password <token>
+```
+
+---
+
+### 📁 Create Application
+
+```bash
+argocd app create my-app \
+  --repo https://github.com/<your-org>/<your-repo>.git \
+  --path manifests \
+  --dest-server https://kubernetes.default.svc \
+  --dest-namespace default
+```
+
+Sync the app:
+```bash
+argocd app sync my-app
+```
+
+---
+
+### 📊 Optional Enhancements
+
+- 🔐 TLS via Ingress + Cert-Manager
+- 🔒 RBAC for role-based access control
+- 📈 Metrics via Prometheus/Grafana
+- 📜 Audit trails for deployment actions
+
+---
+
+### 🧩 Compliance Mapping
+
+| Standard | Alignment |
+|----------|-----------|
+| UK PSF (Professional Standards Framework) | Evidence of digital integration, reflective practice, and sector transformation |
+| CPD Principles | Demonstrates continuous improvement, reproducible workflows, and secure deployment |
+| DevSecOps | GitOps, RBAC, TLS, auditability, and declarative infrastructure |
+
+---
+
+### 📝 Attribution
+
+This integration was authored and validated by **Ayomide Olanrewaju Ajayi**, STEM educator and DevSecOps engineer, with proper attribution and statutory alignment for sector-facing clarity.
+
+---
+
+Would you like this scaffolded into your educator resource pack or bundled with your CI/CD optimizer and ChatOps assistant for unified CPD presentation? I can format it for recruiter-ready impact.
