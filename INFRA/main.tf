@@ -30,10 +30,6 @@
 #   }
 # }
 
-provider "azurerm" {
-  features {}
-}
-
 resource "azurerm_resource_group" "aks_rg" {
   name     = "aks-resource-group"
   location = "UK South"
