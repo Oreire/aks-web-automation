@@ -1,248 +1,3 @@
-# name: Provision and Deploy App to AKS
-
-# on:
-#   push:
-#     branches:
-#       - main
-#   workflow_dispatch:
-
-# env:
-#   IMAGE_NAME: docker.io/webaz
-#   IMAGE_TAG: latest
-#   NAMESPACE: default
-
-# jobs:
-#   # -----------------------------------------------------
-#   # 1️⃣ PROVISION AKS CLUSTER USING TERRAFORM
-#   # -----------------------------------------------------
-#   provision:
-#     name: Provision AKS with Terraform
-#     runs-on: ubuntu-latest
-
-#     defaults:
-#       run:
-#         shell: bash
-
-#     outputs:
-#       rg_name: ${{ steps.aks.outputs.rg_name }}
-#       aks_name: ${{ steps.aks.outputs.aks_name }}
-
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v3
-
-#       - name: Azure Login
-#         uses: azure/login@v1
-#         with:
-#           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-#       - name: Setup Terraform
-#         uses: hashicorp/setup-terraform@v2
-#         with:
-#           terraform_version: 1.9.5
-
-#       # Optional backend file creation (only if your backend expects these)
-#       - name: Create backend.tfvars
-#         run: |
-#           echo 'resource_group_name  = "aks-resource-group"' > INFRA/backend.tfvars
-#           echo 'storage_account_name = "k8scloudtfstateuks"' >> INFRA/backend.tfvars
-#           echo 'container_name       = "tfstate"' >> INFRA/backend.tfvars
-#           echo 'key                  = "terraform.tfstate"' >> INFRA/backend.tfvars
-#           echo 'access_key           = "${{ secrets.AZURE_STORAGE_KEY }}"' >> INFRA/backend.tfvars
-
-#       # Initialize Terraform (backend config is optional)
-#       - name: Terraform Init
-#         working-directory: ./INFRA
-#         env:
-#           ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
-#           ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
-#           ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
-#           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
-#         run: |
-#           if [ -f "backend.tfvars" ]; then
-#             terraform init -backend-config="backend.tfvars"
-#           else
-#             terraform init
-#           fi
-
-#       - name: Terraform Plan
-#         working-directory: ./INFRA
-#         env:
-#           ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
-#           ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
-#           ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
-#           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
-#         run: terraform plan -out=tfplan
-
-#       - name: Terraform Apply
-#         working-directory: ./INFRA
-#         env:
-#           ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
-#           ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
-#           ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
-#           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
-#         run: terraform apply -auto-approve tfplan
-
-#       # ✅ Fixed Output Capture (filter ::debug:: lines)
-#       - name: Get AKS Cluster Info
-#         id: aks
-#         working-directory: ./INFRA
-#         run: |
-#           AKS_NAME=$(terraform output -raw aks_name 2>/dev/null | grep -v "::" || echo "")
-#           RG_NAME=$(terraform output -raw resource_group_name 2>/dev/null | grep -v "::" || echo "")
-
-#           echo "AKS_NAME=${AKS_NAME}" >> $GITHUB_ENV
-#           echo "RG_NAME=${RG_NAME}" >> $GITHUB_ENV
-
-#           echo "aks_name=${AKS_NAME}" >> $GITHUB_OUTPUT
-#           echo "rg_name=${RG_NAME}" >> $GITHUB_OUTPUT
-
-#           echo "✅ AKS Cluster Name: ${AKS_NAME}"
-#           echo "✅ Resource Group: ${RG_NAME}"
-
-#   # -----------------------------------------------------
-#   # 2️⃣ DEPLOY APP TO THE PROVISIONED AKS CLUSTER
-#   # -----------------------------------------------------
-  
-#   deploy:
-#     name: Deploy Application to AKS
-#     runs-on: ubuntu-latest
-#     needs: provision
-
-#     defaults:
-#       run:
-#         shell: bash
-
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v3
-
-#       # Fix Invalid API Version Error + Allow Downgrade of Azure CLI
-#       - name: Install Stable Azure CLI (v2.64.0)
-#         run: |
-#           echo "🧩 Installing Azure CLI v2.64.0 (stable)"
-#           sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/azure-cli.sources || true
-#           sudo apt-get update -y
-#           sudo apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg
-#           curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
-#           echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
-#           sudo apt-get update -y
-#           sudo apt-get install -y --allow-downgrades azure-cli=2.64.0-1~$(lsb_release -cs)
-
-#       - name: Azure Login
-#         uses: azure/login@v2
-#         with:
-#           creds: ${{ secrets.AZURE_CREDENTIALS }}
-#           enable-AzPSSession: false
-#           environment: AzureCloud
-
-#       - name: 🧰 Setup Terraform
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: 1.9.5
-      
-#       - name: 🔐 Azure Login (Service Principal)
-#         uses: azure/login@v2
-#         with:
-#           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-
-#       - name: 🪣 Initialize Terraform backend
-#         run: |
-#           echo "🪣 Initializing Terraform backend..."
-#           cd INFRA
-#           terraform init -reconfigure \
-#             -backend-config="resource_group_name=aks-resource-group" \
-#             -backend-config="storage_account_name=k8scloudtfstateuks" \
-#             -backend-config="container_name=tfstate" \
-#             -backend-config="key=infra.tfstate"
-#         env:
-#           ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
-#           ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
-#           ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
-#           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
-
-#       - name: 📦 Fetch AKS output values from Terraform
-#         working-directory: ./INFRA
-#         run: |
-#           echo "📦 Fetching AKS output values from Terraform..."
-
-#           # Initialize Terraform backend (reconfigure if needed)
-#           terraform init -reconfigure -input=false \
-#             -backend-config="resource_group_name=aks-resource-group" \
-#             -backend-config="storage_account_name=k8scloudtfstateuks" \
-#             -backend-config="container_name=tfstate" \
-#             -backend-config="key=infra.tfstate"
-
-#           # Fetch outputs separately
-#           RG_NAME=$(terraform output -raw resource_group_name || echo "unknown-rg")
-#           AKS_NAME=$(terraform output -raw aks_name || echo "unknown-aks")
-
-#           # Export to GitHub Actions environment
-#           echo "RG_NAME=${RG_NAME}" >> $GITHUB_ENV
-#           echo "AKS_NAME=${AKS_NAME}" >> $GITHUB_ENV
-
-#           # Export to GitHub Actions outputs
-#           echo "rg_name=${RG_NAME}" >> $GITHUB_OUTPUT
-#           echo "aks_name=${AKS_NAME}" >> $GITHUB_OUTPUT
-
-#           echo "Using Resource Group: ${RG_NAME}"
-#           echo "Using AKS Cluster: ${AKS_NAME}"
-#         env:
-#           ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
-#           ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
-#           ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
-#           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
-
-#       - name: Get AKS Credentials (Stable API)
-#         run: |
-#           echo "🔑 Retrieving AKS credentials..."
-#           az aks get-credentials \
-#             --resource-group "$RG_NAME" \
-#             --name "$AKS_NAME" \
-#             --api-version "2025-04-01" \
-#             --overwrite-existing \
-#             --only-show-errors
-
-#       - name: Wait for AKS Nodes Ready
-#         run: |
-#           echo "⏳ Waiting for AKS nodes to be ready..."
-#           for i in {1..30}; do
-#             READY_NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready' || true)
-#             TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || true)
-#             if [ "$TOTAL_NODES" -gt 0 ] && [ "$READY_NODES" -eq "$TOTAL_NODES" ]; then
-#               echo "✅ All $READY_NODES AKS nodes are ready!"
-#               break
-#             fi
-#             echo "Nodes not ready yet. Waiting 20s..."
-#             sleep 20
-#           done
-
-#       - name: Deploy Kubernetes Manifests
-#         run: |
-#           echo "🚀 Deploying Kubernetes manifests..."
-#           kubectl apply -f AKS/ || kubectl replace --force -f AKS/
-
-#       - name: Wait for LoadBalancer IP
-#         id: get-lb-ip
-#         run: |
-#           echo "🌐 Waiting for LoadBalancer IP..."
-#           for i in {1..30}; do
-#             IP=$(kubectl get svc lanik-lb-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-#             if [ -n "$IP" ]; then
-#               echo "LoadBalancer IP is: $IP"
-#               echo "LB_IP=$IP" >> $GITHUB_ENV
-#               echo "lb_ip=$IP" >> $GITHUB_OUTPUT
-#               break
-#             fi
-#             echo "Still waiting for LoadBalancer IP... (Attempt $i)"
-#             sleep 10
-#           done
-
-#       - name: Show LoadBalancer IP
-#         run: |
-#           echo "✅ Application is accessible at: http://$LB_IP"
-
 name: Provision and Deploy App to AKS
 
 on:
@@ -466,9 +221,52 @@ jobs:
             sleep 10
           done
 
-      # - name: Show LoadBalancer IP
-      #   run: echo " Application is accessible at: http://$LB_IP"
-      
       - name: Show LoadBalancer IP
         run: |
-           echo "✅ Application is accessible at: http://$LB_IP"
+          echo "✅ Application is accessible at: http://$LB_IP"
+
+      # 🔍 Verify LoadBalancer Connectivity
+      - name: 🔍 Verify LoadBalancer Connectivity
+        run: |
+          echo "🔍 Verifying LoadBalancer connectivity..."
+
+          if [ -z "$LB_IP" ]; then
+            echo "❌ No LoadBalancer IP detected. Exiting."
+            kubectl get svc -A
+            exit 1
+          fi
+
+          echo "🌐 Checking access to http://$LB_IP ..."
+          for i in {1..10}; do
+            if curl -s --max-time 10 "http://$LB_IP" > /dev/null; then
+              echo "✅ Successfully connected to LoadBalancer at $LB_IP"
+              exit 0
+            else
+              echo "⚠️ Attempt $i: Still unable to reach LoadBalancer..."
+              sleep 10
+            fi
+          done
+
+          echo "❌ Could not reach LoadBalancer service after 10 attempts."
+          echo "🧠 Dumping Kubernetes diagnostics for investigation..."
+
+          echo "--- Services ---"
+          kubectl get svc -o wide
+
+          echo "--- Pods ---"
+          kubectl get pods -o wide
+
+          echo "--- Endpoints ---"
+          kubectl get endpoints
+
+          echo "--- Events ---"
+          kubectl get events --sort-by=.metadata.creationTimestamp | tail -n 20
+
+          exit 1
+
+      # ✅ Deployment Summary
+      - name: ✅ Deployment Summary
+        if: success()
+        run: |
+          echo "🚀 Application successfully deployed and reachable!"
+          echo "🌍 Visit: http://$LB_IP"
