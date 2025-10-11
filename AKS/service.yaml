@@ -1,7 +1,25 @@
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: lanik-lb-service
+# spec:
+#   type: LoadBalancer
+#   selector:
+#     app: lanik-app
+#   ports:
+#     - protocol: TCP
+#       port: 80
+#       targetPort: 80
 apiVersion: v1
 kind: Service
 metadata:
   name: lanik-lb-service
+  labels:
+    app: lanik-app
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "80"
 spec:
   type: LoadBalancer
   selector:
@@ -10,4 +28,3 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 80
-  

@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lanik-app-rules
+  namespace: monitoring
+  labels:
+    release: kube-prom
+spec:
+  groups:
+    - name: lanik-app-alerts
+      rules:
+        - alert: HighErrorRate
+          expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High error rate detected for lanik-app"
+            description: "More than 5% of HTTP requests are failing in the last 5 minutes."

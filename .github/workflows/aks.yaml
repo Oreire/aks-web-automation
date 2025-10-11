@@ -285,4 +285,19 @@ jobs:
           echo "📁 Applying ArgoCD manifests..."
           kubectl apply -f ./ArgoCD/project.yaml
           kubectl apply -f ./ArgoCD/argocd-app.yaml
+          kubectl apply -f ./ArgoCD/monitoring-app.yaml -n argocd
           echo "✅ ArgoCD configuration applied successfully."
+
+      # -------------------------------
+      # 📊 Install Prometheus & Grafana (Optional)
+      # -------------------------------
+      - name: 📈 Install Monitoring Stack
+        run: |
+          kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm upgrade --install kube-prom prometheus-community/kube-prometheus-stack -n monitoring
+
+      - name: 📈 Apply Monitoring Resources
+        run: kubectl apply -k ./MONITORING/
+    
