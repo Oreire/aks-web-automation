@@ -1,28 +1,25 @@
-Automated Deployment of a Containerised Web Application on Azure AKS with GitHub Actions, Terraform, HPA, Argo CD, Prometheus & Grafana
+## Automated Deployment of a Containerised Web Application on Azure AKS with GitHub Actions, Terraform, HPA, Argo CD, Prometheus & Grafana
 
-📘 Project Overview
+# Project Overview
 
 This project delivers a fully automated, cloud-native deployment pipeline for a containerised web application on Azure Kubernetes Service (AKS). It leverages Terraform for infrastructure provisioning, GitHub Actions for CI/CD orchestration, and integrates Horizontal Pod Autoscaler (HPA) for dynamic scaling. Observability is achieved through Prometheus and Grafana, while Argo CD ensures GitOps-driven deployment fidelity. Sensitive credentials are securely managed using GitHub Secrets, and dynamic Terraform outputs facilitate seamless downstream integration.
 
 This solution exemplifies modern DevSecOps, GitOps, and Site Reliability Engineering (SRE) principles, mapped to CPD, recruiter engagement, and statutory compliance.
 
----
 
-📋 Prerequisites
+# Prerequisites
 
-Category	Requirement	
-Cloud Infrastructure	Azure subscription with AKS enabled	
-IaC Tooling	Terraform CLI and Azure provider configuration	
-CI/CD Platform	GitHub repository with Actions enabled	
-Kubernetes Resources	Containerised web application (pre-built image)	
-Secrets Management	GitHub Secrets configured for SP credentials, kubeconfig, and tokens	
-Monitoring Stack	Helm charts for Prometheus, Grafana, kube-state-metrics, node-exporter	
-GitOps Tooling	Argo CD installed in AKS with GitHub repo linked	
+Category	            Requirement	
 
+Cloud Infrastructure	     Azure subscription with AKS enabled	
+IaC Tooling	            Terraform CLI and Azure provider configuration	
+CI/CD Platform	     GitHub repository with Actions enabled	
+Kubernetes Resources	     Containerised web application (pre-built image)	
+Secrets Management	     GitHub Secrets configured for SP credentials, kubeconfig, and tokens	
+Monitoring Stack	     Helm charts for Prometheus, Grafana, kube-state-metrics, node-exporter	
+GitOps Tooling	     Argo CD installed in AKS with GitHub repo linked	
 
----
-
-⚙️ Implementation Steps
+# Implementation Steps
 
 1. Provision AKS Infrastructure with Terraform
 
@@ -36,7 +33,6 @@ GitOps Tooling	Argo CD installed in AKS with GitHub repo linked
 • Created multi-stage workflow:• Build and tag Docker image (pre-containerised).
 • Apply Kubernetes manifests using Terraform outputs.
 • Trigger Argo CD sync via CLI/API.
-
 
 
 3. Secure Secrets with GitHub Secrets
@@ -68,9 +64,7 @@ GitOps Tooling	Argo CD installed in AKS with GitHub repo linked
 • Enabled Prometheus alerting rules for proactive incident response.
 
 
----
-
-✅ Best Practices Adopted
+# Best Practices Adopted
 
 • GitOps Compliance: Git as the single source of truth for deployments.
 • Immutable Infrastructure: Terraform ensures reproducibility and version control.
@@ -80,24 +74,19 @@ GitOps Tooling	Argo CD installed in AKS with GitHub repo linked
 • Auto-healing & Drift Detection: Argo CD ensures live state fidelity.
 • Elastic Scaling: HPA enables cost-effective performance tuning.
 
+# Technical Rationale & Justification
 
----
+Component	              Rationale	
 
-📐 Technical Rationale & Justification
-
-Component	Rationale	
-Terraform	Declarative, version-controlled provisioning aligned with IaC principles.	
+Terraform	       Declarative, version-controlled provisioning aligned with IaC principles.	
 GitHub Actions	Native CI/CD integration with GitHub, enabling seamless automation.	
-Argo CD	GitOps-driven deployment ensures traceability, rollback, and compliance.	
-HPA	Enables responsive scaling based on real-time metrics.	
-Prometheus	Robust metrics collection and alerting for SRE-grade observability.	
-Grafana	Intuitive dashboards for stakeholder visibility and performance insights.	
+Argo CD	       GitOps-driven deployment ensures traceability, rollback, and compliance.	
+HPA	              Enables responsive scaling based on real-time metrics.	
+Prometheus	       Robust metrics collection and alerting for SRE-grade observability.	
+Grafana	       Intuitive dashboards for stakeholder visibility and performance insights.	
 GitHub Secrets	Secure credential management aligned with DevSecOps standards.	
 
-
----
-
-🌐 Benefits for Cloud-Native DevOps & SRE
+# Benefits for Cloud-Native DevOps & SRE
 
 • Zero-touch Deployment: From Git commit to live service with full automation.
 • Scalability & Resilience: HPA ensures performance under load; Argo CD enables rollback.
@@ -105,5 +94,50 @@ GitHub Secrets	Secure credential management aligned with DevSecOps standards.
 • Security & Compliance: GitHub Secrets and GitOps workflows ensure audit-ready posture.
 • Developer Empowerment: Self-service deployment and feedback loops accelerate delivery.
 • Cost Efficiency: Elastic scaling and resource monitoring reduce overprovisioning.
+
+
+# Next Steps
+
+DevSecOps Integration within the Workflow at different Layers would be considered including: 
+
+1️⃣ Code & Dependency Security (before build)
+
+Objective: Detect vulnerabilities, secrets, or policy violations before provisioning or deployment.
+🔹 Static Application Security Testing (SAST)
+🔹 Secret Scanning / Credential Leakage
+Check for accidentally committed secrets.
+
+2️⃣ Infrastructure-as-Code (Terraform) Security
+
+Objective: Prevent insecure infrastructure definitions before they reach Azure.
+🔹 Static IaC Scan (Terraform)
+Use Checkov or tfsec to enforce cloud security best practices.
+This checks for publicly exposed AKS or storage accounts, missing encryption, insecure network rules & lack of RBAC / logging
+
+3️⃣ Container Image Security
+
+Objective: Scan your Docker image for OS/package vulnerabilities before deployment.
+🔹 Container Vulnerability Scan
+     Integrate Aqua Trivy (free and popular) before pushing or before deploying to AKS.
+
+4️⃣ Dependency & Supply-Chain Security
+
+Objective: Secure your build environment and dependencies.
+•	Enable Dependabot for automatic dependency updates:
+•	Usage of signed commits and enable branch protection rules (required reviews, CI checks, etc.)
+
+5️⃣ Runtime & Kubernetes Security
+
+Objective: Validate your AKS manifests and cluster configuration.
+🔹 Kubernetes Manifest Scanning
+   Use kube-linter or kubescape before kubectl apply to flag containers running as root, missing resource limits, unencrypted secrets & insecure host paths
+🔹 Post-Deployment Checks (Optional)
+        After deployment, integration of kubescape or OPA Gatekeeper for runtime policy compliance and Azure Defender for Kubernetes (native AKS integration)
+
+6️⃣ Compliance & Reporting
+
+Generate a summary or artifact of all security checks.
+Optionally, integrate results into GitHub Security Dashboard (with CodeQL + Dependabot).
+
 
 
