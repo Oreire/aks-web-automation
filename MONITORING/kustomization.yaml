@@ -2,3 +2,6 @@ resources:
   - service-monitor.yaml
   - prometheus-rule.yaml
   - grafana-dashboard-configmap.yaml
+
+  # Uncomment the following line to include the alertmanager configuration
+  # - alertmanager-config.yaml
